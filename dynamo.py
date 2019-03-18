@@ -5,6 +5,7 @@ session = boto3.Session(profile_name='tarek')
 dynamodb = session.client('dynamodb')
 customTableName = 'mg_custom'
 suggestionsTableName = 'mg_suggestions'
+msgLogTableName = 'mg_msg_log'
 
 
 def init():
@@ -64,6 +65,30 @@ def init():
         )
         print("Table not found")
         dynamodb.get_waiter('table_exists').wait(TableName=suggestionsTableName)
+    try:
+        dynamodb.describe_table(TableName=msgLogTableName)
+    except Exception:
+        table = dynamodb.create_table(
+            TableName=msgLogTableName,
+            KeySchema=[
+                {
+                    'AttributeName': 'msg_id',
+                    'KeyType': 'HASH'
+                }
+            ],
+            AttributeDefinitions=[
+                {
+                    'AttributeName': 'msg_id',
+                    'AttributeType': 'N'
+                }
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 5,
+                'WriteCapacityUnits': 5
+            }
+        )
+        print("Table not found")
+        dynamodb.get_waiter('table_exists').wait(TableName=msgLogTableName)
 
 
 def add_custom_command(command, value):
@@ -148,3 +173,33 @@ def get_all_custom():
         current += addition
     result.append(current)
     return result
+
+
+def log_new_msg(message):
+    table = session.resource('dynamodb').Table(msgLogTableName)
+    table.put_item(Item={
+        'msg_id': message.id,
+        'content': str(message.content),
+        'author': message.author.id,
+        'date': str(message.created_at)
+    })
+    return "done"
+
+
+def get_deleted_msg(message_id):
+    table = session.resource('dynamodb').Table(msgLogTableName)
+    response = table.get_item(
+        Key={
+            'msg_id': message_id
+        }
+    )
+    return response
+
+
+def delete_logged_msg(message_id):
+    table = session.resource('dynamodb').Table(msgLogTableName)
+    table.delete_item(
+        Key={
+            'msg_id': message_id,
+        }
+    )

@@ -16,6 +16,7 @@ roles_chat = 365624761398591489
 rules_chat = 458786996022673408
 bot_log = 245252349587619840
 bot_spam = 463874995169394698
+message_log = 542481834454548484
 
 modCommands = ["$uncone ", "$cone ", "$coned", "$mute ", "$unmute ", "$clear ", "$custom ", "$servermute ",
                "$serverunmute ", "$help", "$mutechannel", "$unmutechannel", "$suggestions ", "$suggestion ", "$reddit ",
@@ -27,6 +28,7 @@ dynamo.init()
 
 @client.event
 async def on_message(message):
+    dynamo.log_new_msg(message)
     if message.guild is None and message.content.lower().startswith('suggestion: '):
         await misc.new_suggestion(message, client, suggestions_chat)
         return
@@ -138,6 +140,22 @@ async def on_raw_reaction_remove(emoji, msg_id, channel_id, user_id):
                 await user.remove_roles(role, atomic=True)
             except Exception as e:
                 print("couldn't remove role")
+
+
+@client.event
+async def on_raw_message_delete(message_id, channel_id):
+    logged_msg = dynamo.get_deleted_msg(message_id)
+    channel = client.get_channel(channel_id)
+    guild = channel.guild
+    member = guild.get_member(logged_msg["Item"]["author"])
+    print(logged_msg["Item"]["author"])
+    log_msg = "```" + member.name + "\n"
+    log_msg += "Message sent by " + member.mention + " deleted in " + channel.mention + "\n\n"
+    log_msg += logged_msg["Item"]["content"] + "\n\n"
+    log_msg += "User ID: " + str(member.id) + " | Message ID: " + str(message_id) + " * " + logged_msg["Item"][
+        "date"] + "```"
+    await client.get_channel(message_log).send(log_msg)
+    dynamo.delete_logged_msg(message_id)
 
 
 @client.event
